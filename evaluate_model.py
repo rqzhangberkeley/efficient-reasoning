@@ -110,7 +110,12 @@ def evaluate_model(model_name,
                     example_solution=None,
                     n_gpus=1):
     test_prompts = []
-    model = LLM(model_name, tokenizer=f'deepseek-ai/DeepSeek-R1-Distill-Qwen-{scale}', gpu_memory_utilization=0.9, tensor_parallel_size=n_gpus)   
+    model = LLM(model_name, 
+                tokenizer=f'{model_name}', 
+                gpu_memory_utilization=0.9, tensor_parallel_size=n_gpus,
+                dtype='bfloat16',
+                trust_remote_code=True
+                )   
     test_ds = dataset[dataset_split].shuffle(seed=0).select(range(min(max_test_samples, len(dataset[dataset_split]))))
     
     for x in test_ds:
@@ -129,22 +134,6 @@ def evaluate_model(model_name,
             {x[question_key]}"""
             }]
 
-            # prompt = [{
-            #     "role": "user",
-            #     "content": f"Please reason step by step, and put your final answer within \\boxed{{}}.",
-            # }]
-
-            # prompt.extend([
-            #     {"role": "user", "content": f"Here is an example. Please follow the example to reason and solve the question. Question: {example_prompt}"},
-            #     {"role": "assistant", "content": example_solution},
-            # ])
-
-            # prompt.append(
-            #     {
-            #         "role": "user",
-            #         "content": f"Question: {x[question_key]}",
-            #     }
-            # )
         else:
             prompt = [{
                 "role": "user",
@@ -197,6 +186,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_gpus',type=int,default=1)
     args = parser.parse_args()
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
+    os.environ["VLLM_ATTENTION_ENGINE"] = "flash-v2"
 
     dataset_name = args.dataset
     model_paths = args.model_paths
@@ -241,7 +231,7 @@ if __name__ == "__main__":
         TEST_N = 8
         MAX_TOKENS = tok_limit
         TEST_TEMPERATURE = 0.6
-        MAX_TEST_SAMPLES = 100 # RZ: size of gsm8k eval.
+        MAX_TEST_SAMPLES = 1319 # RZ: size of gsm8k eval.
         DATASET_SPLIT = 'test'
     elif dataset_name == 'GAIR/LIMO':
         dataset = load_dataset(dataset_name)

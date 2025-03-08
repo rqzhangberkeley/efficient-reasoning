@@ -19,6 +19,7 @@ For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the p
 |  Qwen2.5-7B-Instruct |85.0 | | 91.6 |
 |  Qwen2.5-Math-7B |77.2 | 96.0| 91.6 |
 |  Qwen2.5-Math-7B-Instruct | 93.3 | | 95.2 |
+|  Qwen2.5-32B-Instruct |95.5 | 98.2 | 95.9 |
 
 ### AIME2024
 | Models| pass@1| pass@10| pass@1 reported by Qwen Team |
@@ -50,9 +51,12 @@ For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the p
 |  Qwen2.5-7B-Instruct | 11.8 | 36.0 |
 |  Qwen2.5-Math-7B |39.7 | 66.3 |
 |  Qwen2.5-Math-7B-Instruct |27.9 | 52.2 |
+|  Qwen2.5-32B-Instruct | 34.1 | 54.2 |
+|  GAIR/LIMO (32B) |  | |
 
 
 ## RL
+We run GRPO on LIMO-train (817 samples) using Qwen2.5-Math-1.5B model. The codebase is from OpenR1 (https://github.com/huggingface/open-r1).
 
 
 
