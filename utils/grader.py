@@ -14,9 +14,9 @@ from typing import Union
 from collections import defaultdict
 
 from sympy import simplify, N
-from sympy.parsing.sympy_parser import parse_expr
-from sympy.parsing.latex import parse_latex
-from latex2sympy2 import latex2sympy
+from sympy.parsing.sympy_parser import parse_expr # Converts a string containing a mathematical expression in Python-like syntax into a SymPy expression
+from sympy.parsing.latex import parse_latex # Converts LaTeX mathematical notation into SymPy expressions
+from latex2sympy2 import latex2sympy # Often more robust than parse_latex for certain types of expressions
 
 # from .parser import choice_answer_clean, strip_string
 # from parser import choice_answer_clean

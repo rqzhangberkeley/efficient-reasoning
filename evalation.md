@@ -1,10 +1,6 @@
-# Sample-Efficient Reinforcement Learning for Mathematical Reasoning
-
-This is the codebase sample-efficient reinforcement learning for mathematical reasoning. We aim to explore some ideas about RL or multi-stage RL on a small dataset and see if we ca outperform SFT.
-
+# Evaluation Results of Models.
 
 ## Baselines: Qwen models.
-We first evaluate some baselines on gsm8k, AIME 2024, MATH500 and LIMO-train (817 samples).
 For the performace of Qwen2.5-1.5B-Instruct and Qwen2.5-7B-Instruct on gsm8k, see https://qwenlm.github.io/blog/qwen2.5-llm/.
 For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the perfromance of Qwen2.5-Math-1.5/7b-Instruct on gsm8k and AIME2024, see https://qwenlm.github.io/blog/qwen2.5-math/.
 
@@ -39,7 +35,7 @@ For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the p
 |  Qwen2.5-Math-7B | |  | |
 |  Qwen2.5-Math-7B-Instruct | |  | |
 
-### LIMO
+## LIMO
 | Models| pass@1| pass@8|
 |:------------------------------|:-----------------------:|:-----------------------:|  
 |  Qwen2.5-1.5B-Instruct | 5.75| 19.1 |
@@ -50,7 +46,6 @@ For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the p
 |  Qwen2.5-Math-7B-Instruct |27.9 | 52.2 |
 
 
-## RL
 
 
 
