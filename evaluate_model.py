@@ -107,9 +107,10 @@ def evaluate_model(model_name,
                     max_test_samples,
                     test_temperature,
                     example_prompt=None,
-                    example_solution=None):
+                    example_solution=None,
+                    n_gpus=1):
     test_prompts = []
-    model = LLM(model_name, tokenizer=f'deepseek-ai/DeepSeek-R1-Distill-Qwen-{scale}', gpu_memory_utilization=0.9, tensor_parallel_size=1, max_model_len=15872)   
+    model = LLM(model_name, tokenizer=f'deepseek-ai/DeepSeek-R1-Distill-Qwen-{scale}', gpu_memory_utilization=0.9, tensor_parallel_size=n_gpus)   
     test_ds = dataset[dataset_split].shuffle(seed=0).select(range(min(max_test_samples, len(dataset[dataset_split]))))
     
     for x in test_ds:
@@ -193,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--scale', type=str, default='auto')
     parser.add_argument('--tok_limit', type=int, default=32768)
+    parser.add_argument('--n_gpus',type=int,default=1)
     args = parser.parse_args()
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
 
@@ -201,6 +203,7 @@ if __name__ == "__main__":
     scale = args.scale
     tok_limit = args.tok_limit
     dataset_name = args.dataset
+    n_gpus=args.n_gpus
     model_scales = []
 
     if scale == 'auto':
@@ -271,7 +274,8 @@ if __name__ == "__main__":
                                 MAX_TEST_SAMPLES, 
                                 TEST_TEMPERATURE,
                                 example_prompt=example_prompt,
-                                example_solution=example_solution
+                                example_solution=example_solution,
+                                n_gpus=n_gpus
                             )
         results[model_path] = scores
 

@@ -5,6 +5,8 @@ This is the codebase sample-efficient reinforcement learning for mathematical re
 
 ## Baselines: Qwen models.
 We first evaluate some baselines on gsm8k, AIME 2024, MATH500 and LIMO-train (817 samples).
+The evaluation codebase is from https://github.com/Zanette-Labs/efficient-reasoning/tree/main and is organized by Daman Arora and Andrea Zanette.
+You can also refer to https://github.com/QwenLM/Qwen2.5-Math for the parser in the pipeline.
 For the performace of Qwen2.5-1.5B-Instruct and Qwen2.5-7B-Instruct on gsm8k, see https://qwenlm.github.io/blog/qwen2.5-llm/.
 For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the perfromance of Qwen2.5-Math-1.5/7b-Instruct on gsm8k and AIME2024, see https://qwenlm.github.io/blog/qwen2.5-math/.
 
