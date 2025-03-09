@@ -6,131 +6,73 @@ from typing import Dict
 import json
 from pathlib import Path
 
-from latex2sympy2_extended import NormalizationConfig
-from math_verify import LatexExtractionConfig, parse, verify
+# from latex2sympy2_extended import NormalizationConfig
+# from math_verify import LatexExtractionConfig, parse, verify
 import wandb
 import logging
-from efficient_reasoning.utils.utils import DATASET_KEYS, RESPONSE_EXTRACTOR, RESPONSE_COMPARATOR
+from utils import DATASET_KEYS, RESPONSE_EXTRACTOR, RESPONSE_COMPARATOR
 
 logger = logging.getLogger(__name__)
 
-def get_reward_functions(dataset_name: str) -> Dict:
-    """Get the reward functions based on the dataset name.
-    
-    Args:
-        dataset_name: Name of the dataset
-        
-    Returns:
-        Dict containing the reward functions and any additional kwargs needed
-    """
-    # For gsm8k dataset, we need to pass the solution
-    if "gsm8k" in dataset_name.lower():
-        return {
-            "accuracy": {
-                "reward_function": accuracy_reward_gsm8k,
-            },
-            "format": {
-                "reward_function": format_reward,
-            }
-        }
-        
-    # Add more dataset specific reward functions here
-    
-    # Default case
-    return {
-        "accuracy": {
-            "reward_function": accuracy_reward,
-        },
-        "format": {
-            "reward_function": format_reward, 
-        }
-    }
-
-# def accuracy_reward_gsm8k(prompts, completions, answer, **kwargs) -> list[float]:
-#     """Reward function that checks if the answer is correct."""
-    
-#     # Extract responses and answers
-#     responses = [completion[0]['content'] for completion in completions]
-#     extracted_responses = [extract_xml_answer(r) for r in responses]
-    
-#     # Calculate rewards and prepare logging info
-#     accuracy_rewards = []
-#     is_correct = []
-    
-#     # Process each response
-#     for i, (r, a, response) in enumerate(zip(extracted_responses, answer, responses)):
-#         try:
-#             if r is not None and int(r) == int(a):
-#                 accuracy_rewards.append(2.0)
-#                 is_correct.append(True)
-#             else:
-#                 accuracy_rewards.append(0.0)
-#                 is_correct.append(False)
-#         except (ValueError, TypeError):
-#             accuracy_rewards.append(0.0)
-#             is_correct.append(False)
-
-#     # print the first reasponse
-#     print(f"\n\n===============================================================\n"  
-#             f"User Question:\n{prompts[0][-1]['content']}"
-#             f"\n\nCorrect Answer:\n{answer[0]}\n"
-#             f"\n---------------------------------------------------------------\n"
-#             f"\n\n1st/{len(completions)} generated responses:\n{responses[0]}"
-#             f"\n\nExtracted: {extracted_responses[0]}"
-#             f"\n\nCorrectness of all {len(completions)} responses: " + ''.join('Y' if accuracy == 2.0 else 'N' for accuracy in accuracy_rewards))
-            
-#     # Store correctness in kwargs for later use
-#     kwargs['is_correct'] = is_correct
-#     kwargs['extracted_answers'] = extracted_responses
-    
-#     return accuracy_rewards
-
-def accuracy_reward_limo(prompts, completions, solution, **kwargs):
-
-
-def accuracy_reward(completions, solution, **kwargs):
-    """Reward function that checks if the completion is the same as the ground truth."""
+def accuracy_reward_limo(prompts, completions, solution, **kwargs) -> list[float]:
+    """Reward function that checks if the answer is correct."""
     contents = [completion[0]["content"] for completion in completions]
-    rewards = []
-    for content, sol in zip(contents, solution):
-        gold_parsed = parse(
-            sol,
-            extraction_mode="first_match",
-            extraction_config=[LatexExtractionConfig()],
-        )
-        if len(gold_parsed) != 0:
-            # We require the answer to be provided in correct latex (no malformed operators)
-            answer_parsed = parse(
-                content,
-                extraction_config=[
-                    LatexExtractionConfig(
-                        normalization_config=NormalizationConfig(
-                            nits=False,
-                            malformed_operators=False,
-                            basic_latex=True,
-                            equations=True,
-                            boxed="all",
-                            units=True,
-                        ),
-                        # Ensures that boxed is tried first
-                        boxed_match_priority=0,
-                        try_extract_without_anchor=False,
-                    )
-                ],
-                extraction_mode="first_match",
-            )
-            # Reward 1 if the content is the same as the ground truth, 0 otherwise
-            reward = float(verify(answer_parsed, gold_parsed))
-        else:
-            # If the gold solution is not parseable, we reward 1 to skip this example
-            reward = 1.0
-            print("Failed to parse gold solution: ", sol)
-        rewards.append(reward)
+    rewards =[]
+    response_comparator = RESPONSE_COMPARATOR['GAIR/LIMO']
+    response_extractor = RESPONSE_EXTRACTOR['GAIR/LIMO']
+    rewards = [response_comparator(response_extractor (sol), response_extractor (content)) for content, sol in zip(contents, solution)]
+
+    # print the first response
+    print(f"\n\n===============================================================\n"  
+            f"User Question:\n{prompts[0][-1]['content']}"
+            f"\n\nCorrect Answer:\n{solution[0]}\n"
+            f"\n---------------------------------------------------------------\n"
+            f"\n\n1st/{len(completions)} generated responses:\n{contents[0]}"
+            f"\n\nCorrectness of all {len(completions)} responses: {rewards}")
 
     return rewards
 
 
+# def accuracy_reward(completions, solution, **kwargs):
+#     """Reward function that checks if the completion is the same as the ground truth."""
+#     contents = [completion[0]["content"] for completion in completions]
+#     rewards = []
+#     for content, sol in zip(contents, solution):
+#         gold_parsed = parse(
+#             sol,
+#             extraction_mode="first_match",
+#             extraction_config=[LatexExtractionConfig()],
+#         )
+#         if len(gold_parsed) != 0:
+#             # We require the answer to be provided in correct latex (no malformed operators)
+#             answer_parsed = parse(
+#                 content,
+#                 extraction_config=[
+#                     LatexExtractionConfig(
+#                         normalization_config=NormalizationConfig(
+#                             nits=False,
+#                             malformed_operators=False,
+#                             basic_latex=True,
+#                             equations=True,
+#                             boxed="all",
+#                             units=True,
+#                         ),
+#                         # Ensures that boxed is tried first
+#                         boxed_match_priority=0,
+#                         try_extract_without_anchor=False,
+#                     )
+#                 ],
+#                 extraction_mode="first_match",
+#             )
+#             # Reward 1 if the content is the same as the ground truth, 0 otherwise
+#             reward = float(verify(answer_parsed, gold_parsed))
+#         else:
+#             # If the gold solution is not parseable, we reward 1 to skip this example
+#             reward = 1.0
+#             print("Failed to parse gold solution: ", sol)
+#         rewards.append(reward)
 
+#     return rewards
 
 ########################################################################################
 # RZ: Those are rewards in openR1. We do not use them.

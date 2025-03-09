@@ -30,25 +30,14 @@ from transformers import set_seed
 from transformers.trainer_utils import get_last_checkpoint
 from transformers import DataCollatorWithPadding
 
-from open_r1.configs import GRPOConfig
-from open_r1.rewards import (
-    accuracy_reward,
-    accuracy_reward_gsm8k,
-    get_reward_functions,
-    format_reward,
-    get_cosine_scaled_reward,
-    get_repetition_penalty_reward,
-    len_reward,
-    reasoning_steps_reward,
-    extract_hash_answer_gsm8k,
-    formulate_cot_gsm8k,
-)
-from open_r1.utils import get_tokenizer
-from open_r1.utils.callbacks import get_callbacks
-from open_r1.utils.wandb_logging import init_wandb_training
+from RL.configs import GRPOConfig
+from RL.rewards import accuracy_reward_limo
+from RL.rl_utils import get_tokenizer
+from RL.rl_utils.callbacks import get_callbacks
+from RL.rl_utils.wandb_logging import init_wandb_training
 from trl import ModelConfig, ScriptArguments, TrlParser, get_peft_config
-from open_r1.grpo_trainer import CustomGRPOTrainer
-from efficient_reasoning.utils.utils import DATASET_KEYS, RESPONSE_EXTRACTOR, RESPONSE_COMPARATOR
+from RL.grpo_trainer import CustomGRPOTrainer
+from utils import DATASET_KEYS, RESPONSE_EXTRACTOR, RESPONSE_COMPARATOR
 
 
 logger = logging.getLogger(__name__)
@@ -120,6 +109,11 @@ class GRPOScriptArguments(ScriptArguments):
         default=0.1,
         metadata={"help": "Fraction of steps per epoch between evaluations"},
     )
+    eval_dataset_name: str = field(
+        default="datasets/converted_aime_dataset",
+        metadata={"help": "Name of the evaluation dataset"},
+    )
+
 
 
 def main(script_args, training_args, model_args):
@@ -220,15 +214,6 @@ def main(script_args, training_args, model_args):
         )
         logger.info(f'Wandb is initialized with run name {run_id}.')
 
-    # Load the dataset
-    # RZ: Here we load the dataset from the local disk.
-    if 'lighteval' in script_args.dataset_name:
-        dataset = load_dataset(script_args.dataset_name, name=script_args.dataset_config)
-    elif  'gsm8k' in script_args.dataset_name:
-        dataset = load_dataset(script_args.dataset_name, 'main')
-    else:
-        raise ValueError(f"Dataset {script_args.dataset_name} is not supported.")
-
     ################
     # Load tokenizer
     ################
@@ -241,25 +226,40 @@ def main(script_args, training_args, model_args):
     #     tokenizer.pad_token = tokenizer.eos_token
 
     # Load the dataset
-    question_key = DATASET_KEYS[dataset_name]["question"]
-    if dataset_name == 'GAIR/LIMO':
-        dataset = load_dataset(dataset_name)
+    question_key = DATASET_KEYS[script_args.dataset_name]["question"]
+    if script_args.dataset_name == 'GAIR/LIMO':
+        dataset = load_dataset(script_args.dataset_name)
         dataset_split = 'train'
         max_samples = 817 if script_args.max_samples == -1 else script_args.max_samples
         dataset = dataset[dataset_split].shuffle(seed=0).select(range(min(max_samples, len(dataset[dataset_split]))))
     else:
         raise ValueError(f"Dataset {dataset_name} is not supported.")
 
-    def make_conversation(example):
+     # load the eval_dataset
+    eval_question_key = DATASET_KEYS[script_args.eval_dataset_name]["question"]
+    if script_args.eval_dataset_name == 'datasets/converted_aime_dataset':
+        eval_dataset = load_from_disk(script_args.eval_dataset_name)
+        eval_dataset_split = 'test'
+        eval_dataset_max_samples = 30
+        eval_dataset = eval_dataset[eval_dataset_split].shuffle(seed=0).select(range(min(eval_dataset_max_samples, len(eval_dataset[eval_dataset_split]))))
+    else:
+        raise ValueError(f"Dataset {script_args.eval_dataset_name} is not supported.")
+
+    def make_conversation(example,key):
         prompt = []
         prompt = [{
                 "role": "user",
-                "content": f"Please reason step by step, and put your final answer within \\boxed{{}}. Question: {x[question_key]}",
+                "content": f"Please reason step by step, and put your final answer within \\boxed{{}}. Question: {example[key]}",
             }]
         return {
             "prompt": prompt
         }
-    dataset = dataset.map(make_conversation)
+    dataset = dataset.map(make_conversation, fn_kwargs={"key": question_key})
+    eval_dataset = eval_dataset.map(make_conversation, fn_kwargs={"key": eval_question_key})
+    
+    # Check if we're using GPUs 4-7 and this is GPU 4 (the first one)
+    if torch.cuda.current_device() == 0:  # First GPU in our allocated set
+        import pdb; pdb.set_trace()
 
     #########################################################
     # Remove messages column
@@ -286,7 +286,7 @@ def main(script_args, training_args, model_args):
     #########################################################
     # Report the total number of steps. Added by RZ.
     #########################################################
-    train_dataset_size = len(dataset[script_args.dataset_train_split])
+    train_dataset_size = len(dataset)
     num_processes = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
     global_batch_size = training_args.per_device_train_batch_size * num_processes * training_args.gradient_accumulation_steps // training_args.num_generations # RZ: the number of prompt per GD step.
     steps_per_epoch = train_dataset_size // global_batch_size
@@ -310,20 +310,26 @@ def main(script_args, training_args, model_args):
     logger.info(f'Callback = {get_callbacks(training_args, model_args)}') # RZ: By default this should be empty.
 
     # Get reward functions and kwargs based on dataset
-    reward_funcs_dict = get_reward_functions(script_args.dataset_name)
+    # reward_funcs_dict = get_reward_functions(script_args.dataset_name)
     
     # Extract reward functions and kwargs for each reward type
-    reward_funcs = []
-    for reward_type in script_args.reward_funcs:
-        if reward_type in reward_funcs_dict:
-            reward_funcs.append(reward_funcs_dict[reward_type]["reward_function"])
+    # reward_funcs = []
+    # for reward_type in script_args.reward_funcs:
+    #     if reward_type in reward_funcs_dict:
+    #         reward_funcs.append(reward_funcs_dict[reward_type]["reward_function"])
+
+    # Setup the reward function.
+    if script_args.dataset_name == 'GAIR/LIMO': 
+        reward_funcs = [accuracy_reward_limo]
+    else:
+        raise ValueError(f"Dataset {script_args.dataset_name} is not supported.")
 
     trainer = CustomGRPOTrainer(
         model=model_args.model_name_or_path,
         reward_funcs=reward_funcs,
         args=training_args,
-        train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+        train_dataset=dataset,
+        eval_dataset=eval_dataset if training_args.eval_strategy != "no" else None,
         peft_config=get_peft_config(model_args),
         callbacks=get_callbacks(training_args, model_args),
         processing_class=tokenizer, # RZ: This processing_class is the tokenizer.
@@ -340,8 +346,7 @@ def main(script_args, training_args, model_args):
     elif last_checkpoint is not None:
         checkpoint = last_checkpoint
 
-    # RZ: This is the main training loop.
-    train_result = trainer.train(resume_from_checkpoint=checkpoint)
+    train_result = trainer.train(resume_from_checkpoint=checkpoint) # train
 
     metrics = train_result.metrics
     metrics["train_samples"] = len(dataset[script_args.dataset_train_split])
@@ -382,9 +387,9 @@ def main(script_args, training_args, model_args):
     # push to hub
     #############
     # Currently, we do not push anything to hub.
-    if training_args.push_to_hub:
-        logger.info("Pushing to hub...")
-        trainer.push_to_hub(**kwargs)
+    # if training_args.push_to_hub:
+    #     logger.info("Pushing to hub...")
+    #     trainer.push_to_hub(**kwargs)
 
 if __name__ == "__main__":
     # Creates a parser that handles three types of configs
