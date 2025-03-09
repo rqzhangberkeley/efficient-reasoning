@@ -9,6 +9,9 @@ The evaluation codebase is from https://github.com/Zanette-Labs/efficient-reason
 You can also refer to https://github.com/QwenLM/Qwen2.5-Math for the parser in the pipeline.
 For the performace of Qwen2.5-1.5B-Instruct and Qwen2.5-7B-Instruct on gsm8k, see https://qwenlm.github.io/blog/qwen2.5-llm/.
 For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the perfromance of Qwen2.5-Math-1.5/7b-Instruct on gsm8k and AIME2024, see https://qwenlm.github.io/blog/qwen2.5-math/.
+
+We evaluate some baselines on LIMO dataet (See https://arxiv.org/abs/2502.03387).
+We also evaluate the LIMO model on several benchmarks.
 Running LIMO model takes much longer time since the model generally outputs longer CoTs. It takes 1.5 hours to run gsm8k-eval on LIMO model via 8 GPUs and batched inference.
 
 ### GSM8k-eval
@@ -33,7 +36,8 @@ Running LIMO model takes much longer time since the model generally outputs long
 |  Qwen2.5-7B-Instruct | 6.7 | 10.0 | / | 1962 |
 |  Qwen2.5-Math-7B | 20.0 | 40.0 | / | 1357|
 |  Qwen2.5-Math-7B-Instruct | 6.7 | 16.7 | 16.7 | 1695 |
-|  GAIR/LIMO (32B) |  | | | |
+|  Qwen2.5-32B-Instruct | 13.3 | 30.0 | / | 1128 |
+|  GAIR/LIMO (32B) | 66.7 |86.7 |/ | 13620|
 
 ### MATH500
 | Models| pass@1| pass@8 | pass@1 reported | Average CoT Length |
@@ -51,8 +55,8 @@ Running LIMO model takes much longer time since the model generally outputs long
 |:------------------------------|:-----------------------:|:-----------------------:|:-----------------------:|  
 |  Qwen2.5-1.5B-Instruct | 5.75| 19.1 | 1757 |
 |  Qwen2.5-Math-1.5B | 20.3 | 49.6 | 1240|
-|  Qwen2.5-Math-1.5B-Instruct | 29.4 | 51.4 | /|
-|  Qwen2.5-7B-Instruct | 11.8 | 36.0 | |
+|  Qwen2.5-Math-1.5B-Instruct | 29.4 | 51.4 | 951 |
+|  Qwen2.5-7B-Instruct | 11.8 | 36.0 | /|
 |  Qwen2.5-Math-7B | 39.7 | 66.3 | 1128 |
 |  Qwen2.5-Math-7B-Instruct | 27.9 | 52.2 | 1503 |
 |  Qwen2.5-32B-Instruct | 34.1 | 54.2 |1070 |
