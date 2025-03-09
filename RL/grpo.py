@@ -183,6 +183,9 @@ def main(script_args, training_args, model_args):
     if last_checkpoint is not None and training_args.resume_from_checkpoint is None:
         logger.info(f"Checkpoint detected, resuming training at {last_checkpoint=}.")
 
+    # RZ: This is suggested by GPT.
+    os.environ['TOKENIZERS_PARALLELISM'] = "false"
+
     ###################
     # Initialize Wandb
     ###################
@@ -229,9 +232,14 @@ def main(script_args, training_args, model_args):
     question_key = DATASET_KEYS[script_args.dataset_name]["question"]
     if script_args.dataset_name == 'GAIR/LIMO':
         dataset = load_dataset(script_args.dataset_name)
-        dataset_split = 'train'
         max_samples = 817 if script_args.max_samples == -1 else script_args.max_samples
-        dataset = dataset[dataset_split].shuffle(seed=0).select(range(min(max_samples, len(dataset[dataset_split]))))
+        for split in dataset:
+            dataset[split] = dataset[split].shuffle(seed=0).select(range(min(max_samples, len(dataset[split]))))
+    elif script_args.dataset_name == 'DigitalLearningGmbH/MATH-lighteval':
+        dataset = load_dataset(script_args.dataset_name)
+        max_samples = 7500 if script_args.max_samples == -1 else script_args.max_samples
+        for split in dataset:
+            dataset[split] = dataset[split].shuffle(seed=0).select(range(min(max_samples, len(dataset[split]))))
     else:
         raise ValueError(f"Dataset {dataset_name} is not supported.")
 
@@ -239,9 +247,9 @@ def main(script_args, training_args, model_args):
     eval_question_key = DATASET_KEYS[script_args.eval_dataset_name]["question"]
     if script_args.eval_dataset_name == 'datasets/converted_aime_dataset':
         eval_dataset = load_from_disk(script_args.eval_dataset_name)
-        eval_dataset_split = 'test'
         eval_dataset_max_samples = 30
-        eval_dataset = eval_dataset[eval_dataset_split].shuffle(seed=0).select(range(min(eval_dataset_max_samples, len(eval_dataset[eval_dataset_split]))))
+        for split in eval_dataset:
+            eval_dataset[split] = eval_dataset[split].shuffle(seed=0).select(range(min(eval_dataset_max_samples, len(eval_dataset[split]))))
     else:
         raise ValueError(f"Dataset {script_args.eval_dataset_name} is not supported.")
 
@@ -258,15 +266,8 @@ def main(script_args, training_args, model_args):
     eval_dataset = eval_dataset.map(make_conversation, fn_kwargs={"key": eval_question_key})
     
     # Check if we're using GPUs 4-7 and this is GPU 4 (the first one)
-    if torch.cuda.current_device() == 0:  # First GPU in our allocated set
-        import pdb; pdb.set_trace()
-
-    #########################################################
-    # Remove messages column
-    #########################################################
-    # for split in dataset:
-    #     if "messages" in dataset[split].column_names:
-    #         dataset[split] = dataset[split].remove_columns("messages")
+    # if torch.cuda.current_device() == 0:  # First GPU in our allocated set
+    #     import pdb; pdb.set_trace()
 
     logger.info("*** Initializing model kwargs ***")
     torch_dtype = (
@@ -286,24 +287,25 @@ def main(script_args, training_args, model_args):
     #########################################################
     # Report the total number of steps. Added by RZ.
     #########################################################
-    train_dataset_size = len(dataset)
+    train_dataset_size = len(dataset[script_args.dataset_train_split])
     num_processes = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
     global_batch_size = training_args.per_device_train_batch_size * num_processes * training_args.gradient_accumulation_steps // training_args.num_generations # RZ: the number of prompt per GD step.
     steps_per_epoch = train_dataset_size // global_batch_size
     
-    if training_args.eval_strategy == "steps":
-        training_args.eval_steps = max(int(steps_per_epoch * script_args.eval_fraction), 1)
-        logger.info(
-            f"train data size = {train_dataset_size}"
-            f"number of processes = {num_processes}"
-            f"global batch size (the number of prompt per GD step) = {global_batch_size}"
-            f"per device batch size = {training_args.per_device_train_batch_size}"
-            f"gradient accumulation steps = {training_args.gradient_accumulation_steps}"
-            f"number of generations = {training_args.num_generations}"
-            f"Total number of steps per epoch: {steps_per_epoch}"
-            f"Setting eval_steps to {training_args.eval_steps} "
-            f"({script_args.eval_fraction*100}% of steps per epoch)"
-        )
+    # if training_args.eval_strategy == "steps":
+        # training_args.eval_steps = max(int(steps_per_epoch * script_args.eval_fraction), 1)
+    logger.info(
+        f"train data size = {train_dataset_size}\n"
+        f"number of processes = {num_processes}\n"
+        f"global batch size (the number of prompt per GD step) = {global_batch_size}\n"
+        f"per device batch size = {training_args.per_device_train_batch_size}\n"
+        f"gradient accumulation steps = {training_args.gradient_accumulation_steps}\n"
+        f"number of generations = {training_args.num_generations}\n"
+        f"Total number of steps per epoch: {steps_per_epoch}\n"
+        f"number of epochs = {training_args.num_train_epochs}\n"
+        # f"Setting eval_steps to {training_args.eval_steps}\n"
+        # f"({script_args.eval_fraction*100}% of steps per epoch)\n"
+    )
 
     # Initialize the GRPO trainer
     #############################
@@ -319,7 +321,7 @@ def main(script_args, training_args, model_args):
     #         reward_funcs.append(reward_funcs_dict[reward_type]["reward_function"])
 
     # Setup the reward function.
-    if script_args.dataset_name == 'GAIR/LIMO': 
+    if script_args.dataset_name in ['GAIR/LIMO','DigitalLearningGmbH/MATH-lighteval']: 
         reward_funcs = [accuracy_reward_limo]
     else:
         raise ValueError(f"Dataset {script_args.dataset_name} is not supported.")
@@ -328,8 +330,8 @@ def main(script_args, training_args, model_args):
         model=model_args.model_name_or_path,
         reward_funcs=reward_funcs,
         args=training_args,
-        train_dataset=dataset,
-        eval_dataset=eval_dataset if training_args.eval_strategy != "no" else None,
+        train_dataset=dataset[script_args.dataset_train_split],
+        eval_dataset=eval_dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
         peft_config=get_peft_config(model_args),
         callbacks=get_callbacks(training_args, model_args),
         processing_class=tokenizer, # RZ: This processing_class is the tokenizer.

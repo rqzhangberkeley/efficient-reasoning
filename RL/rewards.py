@@ -21,14 +21,15 @@ def accuracy_reward_limo(prompts, completions, solution, **kwargs) -> list[float
     response_comparator = RESPONSE_COMPARATOR['GAIR/LIMO']
     response_extractor = RESPONSE_EXTRACTOR['GAIR/LIMO']
     rewards = [response_comparator(response_extractor (sol), response_extractor (content)) for content, sol in zip(contents, solution)]
+    rewards = [float(reward) for reward in rewards] # 1.0 if True and 0.0 if False
 
     # print the first response
     print(f"\n\n===============================================================\n"  
-            f"User Question:\n{prompts[0][-1]['content']}"
-            f"\n\nCorrect Answer:\n{solution[0]}\n"
-            f"\n---------------------------------------------------------------\n"
-            f"\n\n1st/{len(completions)} generated responses:\n{contents[0]}"
-            f"\n\nCorrectness of all {len(completions)} responses: {rewards}")
+    f"User Question:\n{prompts[0][-1]['content']}"
+    f"\n\nCorrect Answers:\n{[response_extractor(s) for s in solution]}\n"
+    f"\n---------------------------------------------------------------\n"
+    f"\n\ngenerated responses:\n{[response_extractor(c) for c in contents]}"
+    f"\n\nCorrectness of all {len(completions)} responses: {rewards}")
 
     return rewards
 

@@ -20,12 +20,13 @@ run_experiment() {
     local beta="$7"
     local max_grad_norm="$8"
     local max_samples="$9" # -1 means use all data
+    local num_epochs="${10}"
 
     # Set environment variables for this run
     export PYTHONPATH="/home/jovyan/project/efficient-reasoning:${PYTHONPATH}"
-    export CUDA_VISIBLE_DEVICES="4,5,6,7"  # Use 4 GPUs
+    export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"  # Use 4 GPUs
     export dataset_name="limo" # A 7.5k dataset.
-    export num_processes="3"  # Using 7 GPUs for training.
+    export num_processes="7"  # Using 7 GPUs for training.
     export per_device_eval_batch_size="2"
     
     # Generate unique ID for this run
@@ -42,7 +43,8 @@ run_experiment() {
     echo "Seed: $seed"
     echo "Batch size: $per_device_train_batch_size"
     echo "Gradient accumulation: $gradient_accumulation_steps"
-    echo "Using all 4 GPUs"
+    echo "Number of epochs: $num_epochs"
+    echo "Using all 8 GPUs"
     
     # Run the experiment and capture both stdout and stderr
     {
@@ -61,10 +63,11 @@ run_experiment() {
             --beta=${beta} \
             --learning_rate=${lr} \
             --lr_scheduler_type=cosine \
+            --num_train_epochs=${num_epochs} \
             --max_samples=${max_samples} \
             --seed=${seed} \
             --report_to=wandb 2>&1
-    } # > logs/grpo_QwenMath1.5B_${dataset_name}_${uid}.txt
+    } > logs/grpo_QwenMath1.5B_${dataset_name}_${uid}.txt
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
@@ -77,9 +80,10 @@ run_experiment() {
 }
 
 # Define hyperparameter configurations
-# Format: "lr wd G seed train_batch_size_per_device grad_accum beta max_grad_norm max_samples"
+# Format: "lr wd G seed train_batch_size_per_device grad_accum beta max_grad_norm max_samples num_epochs"
 declare -a configs=(
-    "3e-6 0.1 16 1001 16 8 0.05 1.0 -1"       # baseline
+    # "3e-6 0.1 14 1001 8 8 0.05 1.0 -1 3"       # baseline
+    "5e-6 0.1 56 1001 8 8 0.05 1.0 -1 10"       # large G, longer epoch
 )
 
 # Create a directory for job status
@@ -90,9 +94,11 @@ for i in "${!configs[@]}"; do
     config=(${configs[$i]})
     
     # Run the experiment and wait for it to complete before starting next one
-    run_experiment "${config[0]}" "${config[1]}" "${config[2]}" "${config[3]}" "${config[4]}" "${config[5]}" "${config[6]}" "${config[7]}" "${config[8]}"
+    run_experiment "${config[0]}" "${config[1]}" "${config[2]}" "${config[3]}" "${config[4]}" "${config[5]}" "${config[6]}" "${config[7]}" "${config[8]}" "${config[9]}"
     
     echo "Completed job $i"
 done
 
 echo "All jobs completed"
+
+# run nohup ./grpo_limo.sh > grpo_limo.log 2>&1 &

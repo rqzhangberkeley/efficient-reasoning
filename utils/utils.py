@@ -8,6 +8,7 @@ DATASET_KEYS = {
     'di-zhang-fdu/MATH500': {'question': 'problem', 'answer': 'solution'},
     'datasets/compression_dataset': {'question': 'problem', 'answer': 'solution'},
     'GAIR/LIMO': {'question': 'question', 'answer': 'solution'}, # RZ: whether I should use 'solution' or 'answer' here?
+    'DigitalLearningGmbH/MATH-lighteval': {'question': 'problem', 'answer': 'solution'},
 }
 
 RESPONSE_EXTRACTOR = {
@@ -16,7 +17,8 @@ RESPONSE_EXTRACTOR = {
     'di-zhang-fdu/MATH500': lambda x: extract_answer(x, data_name='math'),
     'datasets/compression_dataset': lambda x: extract_answer(x, data_name='math'),
     'datasets/converted_aime_dataset': lambda x: extract_answer(x, data_name='math'),
-    'GAIR/LIMO': lambda x: extract_answer(x, data_name='math')
+    'GAIR/LIMO': lambda x: extract_answer(x, data_name='math'),
+    'DigitalLearningGmbH/MATH-lighteval': lambda x: extract_answer(x, data_name='math'),
 }
 
 RESPONSE_COMPARATOR = {
@@ -25,5 +27,6 @@ RESPONSE_COMPARATOR = {
     'di-zhang-fdu/MATH500': lambda x, y: math_equal(x, y, timeout=True),
     'datasets/compression_dataset': lambda x, y: math_equal(x, y, timeout=True),
     'datasets/converted_aime_dataset': lambda x, y: math_equal(x, y, timeout=True),
-    'GAIR/LIMO': lambda x, y: math_equal(x, y, timeout=True)
+    'GAIR/LIMO': lambda x, y: math_equal(x, y, timeout=True),
+    'DigitalLearningGmbH/MATH-lighteval': lambda x, y: math_equal(x, y, timeout=True),
 }

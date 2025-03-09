@@ -66,5 +66,5 @@ Running LIMO model takes much longer time since the model generally outputs long
 ## RL
 We run GRPO on LIMO-train (817 samples) using Qwen2.5-Math-1.5B model. The codebase is from OpenR1 (https://github.com/huggingface/open-r1).
 
-
+Base experiment: Qwen2.5-Math-1.5B + LIMO(817 samples). Trained for 3 epochs. Evaluated on AIME2024. We use 8 A100 GPUs (7 for training and 1 for vllm generation). We set G = 14, batch size = 32 (number of prompts per gradiet step), step per epoch =25. The peak learning rate is 3e-6, the lr scheduler is cosine with warmup ratio = 0.1, weight decay is 0.1, max grad norm is 1.0, beta is 0.05.
 
