@@ -1,16 +1,16 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # evaluate the model from HF
 python evaluate_model.py \
-    --model_paths "./results-grpo/Qwen2.5-Math-1.5B-GRPO-limo-lr5e-6-wd0.1-G7-beta0.005-train_bsz8-gradacc8-seed1001-20250316-005346/checkpoint-36" \
-    --dataset "datasets/converted_aime_dataset" \
+    --model_paths "Qwen/Qwen2.5-Math-1.5B" \
+    --dataset "di-zhang-fdu/MATH500" \
     --scale 1.5B \
     --n_gpus 4
 
 # run it with nohup: 
-# nohup ./evaluate_model.sh > evaluate_model_gpu0.log 2>&1 &
-# nohup ./evaluate_model.sh > evaluate_model_gpu1.log 2>&1 &
+# nohup ./evaluate_model.sh > evaluate_model_MATH500_0_additional_prompt.log 2>&1 &
+# nohup ./evaluate_model.sh > evaluate_model_gsm8k_0.log 2>&1 &
 # nohup ./evaluate_model.sh > evaluate_model_gpu2.log 2>&1 &
 # nohup ./evaluate_model.sh > evaluate_model_gpu3.log 2>&1 &
 # nohup ./evaluate_model.sh > evaluate_model_gpu4.log 2>&1 &

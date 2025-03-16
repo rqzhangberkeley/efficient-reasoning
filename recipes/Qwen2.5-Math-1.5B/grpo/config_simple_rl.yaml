@@ -19,8 +19,8 @@ use_vllm: true
 vllm_device: auto
 vllm_gpu_memory_utilization: 0.9
 do_eval: false
-eval_strategy: steps # RZ: LIMO does not have a test split, so we do not evaluate along the way.
-eval_steps: 10
+eval_strategy: epoch # RZ: LIMO does not have a test split, so we do not evaluate along the way.
+# eval_steps: 10
 gradient_accumulation_steps: 8
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
