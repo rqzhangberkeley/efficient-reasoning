@@ -221,6 +221,9 @@ def main(script_args, training_args, model_args):
     # Load tokenizer
     ################
     tokenizer = get_tokenizer(model_args, training_args)
+    tokenizer.padding_side = 'left'
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
     # RZ: This is suggested by GPT.
     # tokenizer.padding_side = 'left'
@@ -255,20 +258,25 @@ def main(script_args, training_args, model_args):
 
     def make_conversation(example,key):
         prompt = []
-        prompt = [{
-                "role": "user",
-                "content": f"Please reason step by step, and put your final answer within \\boxed{{}}. Question: {example[key]}",
-            }]
+
+        if model_args.model_name_or_path == 'Qwen/Qwen2.5-Math-1.5B' or model_args.model_name_or_path == 'Qwen/Qwen2.5-Math-7B':
+            prompt = [{
+                    "role": "user",
+                    "content": f"Question: {example[key]}",
+                }]
+        elif "DeepSeek-R1-Distill" in model_args.model_name_or_path:
+            prompt = [{
+                    "role": "user",
+                    "content": f"Please reason step by step, and put your final answer within \\boxed{{}}. Question: {example[key]}",
+                }]
+        else:
+            raise ValueError(f"Model {model_args.model_name_or_path} is not supported.")
         return {
             "prompt": prompt
         }
     dataset = dataset.map(make_conversation, fn_kwargs={"key": question_key})
     eval_dataset = eval_dataset.map(make_conversation, fn_kwargs={"key": eval_question_key})
     
-    # Check if we're using GPUs 4-7 and this is GPU 4 (the first one)
-    # if torch.cuda.current_device() == 0:  # First GPU in our allocated set
-    #     import pdb; pdb.set_trace()
-
     logger.info("*** Initializing model kwargs ***")
     torch_dtype = (
         model_args.torch_dtype if model_args.torch_dtype in ["auto", None] else getattr(torch, model_args.torch_dtype)

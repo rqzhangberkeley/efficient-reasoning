@@ -364,6 +364,7 @@ class CustomGRPOTrainer(Trainer):
         # Training arguments
         self.max_prompt_length = args.max_prompt_length
         self.max_completion_length = args.max_completion_length  # = |o_i| in the GRPO paper
+        self.max_completion_length_eval = args.max_completion_length_eval
         self.num_generations = args.num_generations  # = G in the GRPO paper
         self.num_generations_eval = args.num_generations_eval # = the number of generations in the evaluation process. This is to prevent the evaluation time being too long when we use a large G for training.
         self.use_vllm = args.use_vllm
@@ -472,7 +473,7 @@ class CustomGRPOTrainer(Trainer):
                         # directly reuse the KV cache if it shares the same prefix with one of the existing queries.
                         # This is particularly useful here because we generate completions from the same prompts.
                         enable_prefix_caching=self.args.vllm_enable_prefix_caching,
-                        max_model_len=self.args.vllm_max_model_len,
+                        max_model_len=self.args.vllm_max_model_len, # RZ: This is None in our experiments.
                     )
 
                 # Guided decoding, if enabled
@@ -485,15 +486,15 @@ class CustomGRPOTrainer(Trainer):
                 self.sampling_params = SamplingParams(
                     temperature=args.temperature,
                     max_tokens=self.max_completion_length,
-                    guided_decoding=guided_decoding,
                     n=args.num_generations,
                 )
+                self.sampling_params.stop_token_ids = [self.llm.llm_engine.tokenizer.tokenizer.eos_token_id]
                 self.sampling_params_eval = SamplingParams(
                     temperature=args.temperature,
-                    max_tokens=self.max_completion_length,
-                    guided_decoding=guided_decoding,
+                    max_tokens=self.max_completion_length_eval, # In evaluation, we use max_completion_length_eval = 32874
                     n=args.num_generations_eval,
                 )
+                self.sampling_params_eval.stop_token_ids = [self.llm.llm_engine.tokenizer.tokenizer.eos_token_id]
 
             self._last_loaded_step = 0  # tag to avoid useless loading during grad accumulation
 
@@ -537,6 +538,13 @@ class CustomGRPOTrainer(Trainer):
             'completion': [],
             'reward': []
         }
+
+        # self.completion_data_eval = {
+        #     'step': [],
+        #     'prompt': [],
+        #     'completion': [],
+        #     'reward': []
+        # }
 
     def _set_signature_columns_if_needed(self):
         # If `self.args.remove_unused_columns` is True, non-signature columns are removed.
@@ -681,21 +689,29 @@ class CustomGRPOTrainer(Trainer):
         self, inputs: dict[str, Union[torch.Tensor, Any]]
     ) -> dict[str, Union[torch.Tensor, Any]]:
 
+        # RZ: Set the sampler and the batch size base on the mode.
+        mode = "eval" if self.control.should_evaluate else "train"
+
         device = self.accelerator.device
-        prompts = [x["prompt"] for x in inputs]
-        prompts_text = [maybe_apply_chat_template(example, self.processing_class)["prompt"] for example in inputs] # List of string. Every sstring is a prompt + question.
+        prompts = [x["prompt"] for x in inputs] # RZ: List[List[Dict]], len = train_batch_size_per_device.
+        prompts_text = [maybe_apply_chat_template(example, self.processing_class)["prompt"] for example in inputs] # List of string. Every string is a prompt + question. len = train_batch_size_per_device. Here, we apply the chat template to the prompts.
         prompt_inputs = self.processing_class(
-            prompts_text, return_tensors="pt", padding=True, padding_side="left", add_special_tokens=False
+            prompts_text, 
+            return_tensors="pt", 
+            padding=True, 
+            padding_side="left",
+            add_special_tokens=False
         )
         prompt_inputs = super()._prepare_inputs(prompt_inputs)
         prompt_ids, prompt_mask = prompt_inputs["input_ids"], prompt_inputs["attention_mask"] # RZ: (batch_size, max_prompt_length)
 
+        # RZ: We should use num_generations = per_device_train_batch_size so that there is no padding for this batch
+
+        ####!!! RZ: For now we remove the truncation.
         if self.max_prompt_length is not None:
             prompt_ids = prompt_ids[:, -self.max_prompt_length :]
             prompt_mask = prompt_mask[:, -self.max_prompt_length :]
 
-        # RZ: Set the sampler and the batch size base on the mode.
-        mode = "eval" if self.control.should_evaluate else "train"
 
         # Generate completions using either vLLM or regular generation
         if self.args.use_vllm:
@@ -703,6 +719,15 @@ class CustomGRPOTrainer(Trainer):
             if self.state.global_step != self._last_loaded_step:
                 self._move_model_to_vllm()
                 self._last_loaded_step = self.state.global_step
+
+            if mode == 'eval' and self.accelerator.is_main_process: # RZ: test the evaluation process and see whether this is identical to the offline evaluation process.
+                print('Generating completions test outputs...')
+                print(self.llm.llm_engine.tokenizer.tokenizer.decode(prompt_ids[0], skip_special_tokens=False))
+
+            # elif mode == 'train' and self.accelerator.is_main_process:
+            #     if self.state.global_step == 1:
+            #         print('Generating completions training outputs...')
+            #         print(self.llm.llm_engine.tokenizer.tokenizer.decode(prompt_ids[0], skip_special_tokens=False))
             
             #########################################################
             # Generate completions using vLLM: gather all prompts and use them in a single call in the main process
@@ -899,21 +924,33 @@ class CustomGRPOTrainer(Trainer):
         self._metrics[mode]["reward"].append(rewards.mean().item())
         self._metrics[mode]["reward_std"].append(std_grouped_rewards.mean().item())
 
-        ###################################
-        # RZ: log the info and completions.
-        ###################################
-        if self.log_completions and self.state.global_step % self.args.logging_steps == 0:
+        #########################################################################
+        # RZ: log the info and completions (in the training and evaluation time)
+        #########################################################################
+        if self.log_completions and self.state.global_step % self.args.logging_steps == 0 and mode == 'train':
             prompts_to_log = gather_object(prompts_text)
             completions_to_log = gather_object(completions_text)
             rewards_to_log = rewards.tolist()
 
             if self.accelerator.is_main_process:
-                if self.args.report_to and "wandb" in self.args.report_to and wandb.run is not None:
-                    # Store the data in self.completions
-                    self.completion_data["step"].extend([str(self.state.global_step)] * len(rewards))
-                    self.completion_data["prompt"].extend(prompts_to_log)
-                    self.completion_data["completion"].extend(completions_to_log)
-                    self.completion_data["reward"].extend(rewards.tolist())
+                # Store the data in self.completions
+                self.completion_data["step"].extend([str(self.state.global_step)] * len(rewards))
+                self.completion_data["prompt"].extend(prompts_to_log)
+                self.completion_data["completion"].extend(completions_to_log)
+                self.completion_data["reward"].extend(rewards.tolist())
+
+        # if self.log_completions and mode == 'eval':
+        #     print('Logging completions for evaluation...')
+        #     prompts_to_log = gather_object(prompts_text)
+        #     completions_to_log = gather_object(completions_text)
+        #     rewards_to_log = rewards.tolist()
+
+        #     if self.accelerator.is_main_process:
+        #         # Store the data in self.completions
+        #         self.completion_data_eval["step"].extend([str(self.state.global_step)] * len(rewards))
+        #         self.completion_data_eval["prompt"].extend(prompts_to_log)
+        #         self.completion_data_eval["completion"].extend(completions_to_log)
+        #         self.completion_data_eval["reward"].extend(rewards.tolist())
 
         return {
             "prompt_ids": prompt_ids,                    # (batch_size, prompt_length)
@@ -1063,7 +1100,11 @@ class CustomGRPOTrainer(Trainer):
         if self.accelerator.is_main_process:
             import pandas as pd
             final_df = pd.DataFrame(self.completion_data)
+            # final_df_eval = pd.DataFrame(self.completion_data_eval)
 
             if output_dir:
                 json_path = os.path.join(output_dir, "all_completions.json")
                 final_df.to_json(json_path, orient='records', lines=True)
+                # json_path_eval = os.path.join(output_dir, "all_completions_eval.json")
+                # final_df_eval.to_json(json_path_eval, orient='records', lines=True)
+            

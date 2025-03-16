@@ -10,11 +10,13 @@ You can also refer to https://github.com/QwenLM/Qwen2.5-Math for the parser in t
 For the performace of Qwen2.5-1.5B-Instruct and Qwen2.5-7B-Instruct on gsm8k, see https://qwenlm.github.io/blog/qwen2.5-llm/.
 For the performance of Qwen2.5-Math-1.5B and Qwen2.5-math-7B on gsm8k, and the perfromance of Qwen2.5-Math-1.5/7b-Instruct on gsm8k and AIME2024, see https://qwenlm.github.io/blog/qwen2.5-math/.
 
-We evaluate some baselines on LIMO dataet (See https://arxiv.org/abs/2502.03387).
+<!-- We evaluate some baselines on LIMO dataet (See https://arxiv.org/abs/2502.03387).
 We also evaluate the LIMO model on several benchmarks.
-Running LIMO model takes much longer time since the model generally outputs longer CoTs. It takes 1.5 hours to run gsm8k-eval on LIMO model via 8 GPUs and batched inference.
+Running LIMO model takes much longer time since the model generally outputs longer CoTs. It takes 1.5 hours to run gsm8k-eval on LIMO model via 8 GPUs and batched inference. -->
 
-### GSM8k-eval
+Note that, the original codebase was designed for the DeepSeek-Distill-Qwen2.5-1.5B/7B model. When training the Qwen/Qwen2.5-Math models, we need to modify the data preprocessing pipeline because when we set tokenizer = "Qwen/Qwen2.5-Math-1.5B", a system prompt will be added automatically unlike tokenizer = "DeepSeek-Distill-Qwen2.5-1.5B", so we should not repeat this prompt (otherwise the average pass rate will decrease to 2 from around 7). The AIME2024 results are evaluated on 4 A100 GPUs.
+
+<!-- ### GSM8k-eval
 | Models| pass@1| pass@8 | pass@1 reported | Average CoT Length |
 |:-----------------|:------------------:|:------------------:|:------------------:|:------------------:|
 |  Qwen2.5-1.5B-Instruct | 67.5 | 90.1 | 73.2 | 328 |
@@ -24,22 +26,15 @@ Running LIMO model takes much longer time since the model generally outputs long
 |  Qwen2.5-Math-7B |77.2 | 96.0| 91.6 | 371 |   
 |  Qwen2.5-Math-7B-Instruct | 93.3 | | 95.2 | 394 |         
 |  Qwen2.5-32B-Instruct |95.5 | 98.2 | 95.9 | 279 |
-|  GAIR/LIMO (32B) | 94.5 | 97.3 | / | 1327 |
+|  GAIR/LIMO (32B) | 94.5 | 97.3 | / | 1327 | -->
 
 ### AIME2024
-| Models| pass@1| pass@10| pass@1 reported | Average CoT Length |
+| Models| pass@1| pass@10| average pass rate (10) | Average CoT Length |
 |:------------------------------|:-----------------------:|:-----------------------:|:-----------------------:|:-----------------------:|
-|  Qwen2.5-1.5B-Instruct | 0.0 | 10.0 | / | 2145 |
-|  Qwen2.5-1.5B-Instruct+Long CoT Example | 3.3 | 10.0 | / | 4094 |
-|  Qwen2.5-Math-1.5B | 6.7 | 26.7 | / | 1314 |
-|  Qwen2.5-Math-1.5B-Instruct | 6.7 | 23.3 | 10.0 | 979 |
-|  Qwen2.5-7B-Instruct | 6.7 | 10.0 | / | 1962 |
-|  Qwen2.5-Math-7B | 20.0 | 40.0 | / | 1357|
-|  Qwen2.5-Math-7B-Instruct | 6.7 | 16.7 | 16.7 | 1695 |
-|  Qwen2.5-32B-Instruct | 13.3 | 30.0 | / | 1128 |
-|  GAIR/LIMO (32B) | 66.7 |86.7 |/ | 13620|
+|  Qwen2.5-Math-1.5B | 3.3 | 23.3 | 4.7 | 1963 |
+|  Qwen2.5-Math-7B |  |  | / | |
 
-### MATH500
+<!-- ### MATH500
 | Models| pass@1| pass@8 | pass@1 reported | Average CoT Length |
 |:------------------------------|:-----------------------:|:----------------------------:|:----------------------------:|:----------------------------:|
 |  Qwen2.5-1.5B-Instruct | 51.8 | 76.0 | |778 |
@@ -60,11 +55,19 @@ Running LIMO model takes much longer time since the model generally outputs long
 |  Qwen2.5-Math-7B | 39.7 | 66.3 | 1128 |
 |  Qwen2.5-Math-7B-Instruct | 27.9 | 52.2 | 1503 |
 |  Qwen2.5-32B-Instruct | 34.1 | 54.2 |1070 |
-|  GAIR/LIMO (32B) |  | | | |
+|  GAIR/LIMO (32B) |  | | | | -->
 
 
 ## RL
 We run GRPO on LIMO-train (817 samples) using Qwen2.5-Math-1.5B model. The codebase is from OpenR1 (https://github.com/huggingface/open-r1).
 
-Base experiment: Qwen2.5-Math-1.5B + LIMO(817 samples). Trained for 3 epochs. Evaluated on AIME2024. We use 8 A100 GPUs (7 for training and 1 for vllm generation). We set G = 14, batch size = 32 (number of prompts per gradiet step), step per epoch =25. The peak learning rate is 3e-6, the lr scheduler is cosine with warmup ratio = 0.1, weight decay is 0.1, max grad norm is 1.0, beta is 0.05.
+Base experiment: Qwen2.5-Math-1.5B + LIMO(817 samples). Trained for 3 epochs. Evaluated on AIME2024. We use 8 A100 GPUs (7 for training and 1 for vllm generation). We set G = 7, batch size = 64 (number of prompts per gradiet step), step per epoch =12. The peak learning rate is 5e-6, the lr scheduler is cosine with warmup ratio = 0.1, weight decay is 0.1, max grad norm is 1.0, beta is 0.005.
+
+### AIME2024
+| Models| pass@1| pass@1(majority)| pass@10| average pass rate (10) | Average CoT Length |
+|:------------------------------|:-----------------------:|:-----------------------:|:-----------------------:|:-----------------------:|:-----------------------:|
+|  Qwen2.5-Math-1.5B | 3.3 | 3.3 | 23.3 | 4.7 | 1963 |
+|  1 epoch | 6.7 | 16.7 | 26.7 | 8.3| 1473 |
+|  2 epoch | 6.7 | 23.3 | 30.0 | 13.3| 1294 |
+|  3 epoch | 16.6 | 26.7| 40.0 | 12.7 | 1173 |
 

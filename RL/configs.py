@@ -50,6 +50,10 @@ class GRPOConfig(trl.GRPOConfig):
         default=None,
         metadata={"help": ("The project to store runs under.")},
     )
+    max_completion_length_eval: int = field(
+        default=32874,
+        metadata={"help": "The maximum completion length for evaluation."},
+    )
 
 
 @dataclass

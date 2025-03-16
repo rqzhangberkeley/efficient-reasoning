@@ -82,8 +82,7 @@ run_experiment() {
 # Define hyperparameter configurations
 # Format: "lr wd G seed train_batch_size_per_device grad_accum beta max_grad_norm max_samples num_epochs"
 declare -a configs=(
-    # "3e-6 0.1 14 1001 8 8 0.05 1.0 -1 3"       # baseline
-    "5e-6 0.1 56 1001 8 8 0.05 1.0 -1 10"       # large G, longer epoch
+    "5e-6 0.1 7 1001 8 8 0.005 1.0 -1 3"       # large G, longer epoch
 )
 
 # Create a directory for job status

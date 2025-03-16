@@ -7,19 +7,20 @@ attn_implementation: flash_attention_2
 # Data training arguments
 dataset_name: GAIR/LIMO
 dataset_config: default
+eval_dataset_name: datasets/converted_aime_dataset
 # Num processes is less by 1 as vLLM is using 1 GPU
 num_processes: 7
 experiment_name: GRPO
 
 # GRPO trainer config
 bf16: true
-beta: 0.05 # RZ: This is the KL penalty parameter.
+beta: 0.005 # RZ: This is the KL penalty parameter.
 use_vllm: true
 vllm_device: auto
 vllm_gpu_memory_utilization: 0.9
 do_eval: false
-eval_strategy: epoch # RZ: LIMO does not have a test split, so we do not evaluate along the way.
-# eval_steps: 5
+eval_strategy: steps # RZ: LIMO does not have a test split, so we do not evaluate along the way.
+eval_steps: 10
 gradient_accumulation_steps: 8
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
@@ -33,13 +34,14 @@ logging_first_step: true
 logging_steps: 1
 logging_strategy: steps
 lr_scheduler_type: cosine
-max_prompt_length: 512
-max_completion_length: 1024
+max_prompt_length: 2048 # RZ: We should use a long max_prompt_length
+max_completion_length: 32874 # RZ: This follows the offline evaluation codebase.
+max_completion_length_eval: 32874
 max_steps: -1
 max_grad_norm: 1.0 # RZ: This adapts from YM's codebase
 weight_decay: 0.0 # RZ: This adapts from YM's codebase
 num_generations: 8 # RZ: This is the G in the GRPO paper.
-num_generations_eval: 2
+num_generations_eval: 7
 num_train_epochs: 5
 per_device_eval_batch_size: 16
 per_device_train_batch_size: 16
