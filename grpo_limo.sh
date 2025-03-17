@@ -83,7 +83,9 @@ run_experiment() {
 # Format: "lr wd G seed train_batch_size_per_device grad_accum beta max_grad_norm max_samples num_epochs"
 declare -a configs=(
     # "5e-6 0.1 7 1001 8 8 0.005 1.0 -1 3" # Baseline
-    "5e-6 0.1 7 1001 8 8 0.005 1.0 -1 10" # 10 epochs
+    # "5e-6 0.1 7 1001 8 8 0.005 1.0 -1 10" # 10 epochs
+    # "5e-7 0.1 7 1001 8 8 0.005 1.0 -1 10" # 10 epochs with lr = 5e-7.
+    # "1e-6 0.1 7 1001 8 8 0.001 1.0 -1 10" # 10 epochs with lr = 1e-6 and beta = 0.001
 )
 
 # Create a directory for job status

@@ -113,22 +113,24 @@ def evaluate_model(model_name,
     test_prompts = []
     model = LLM(model_name, 
                 tokenizer=f'{model_name}',
+                # tokenizer='deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B',
                 gpu_memory_utilization=0.9, 
                 tensor_parallel_size=n_gpus)
     print(f"Model dtype: {model.llm_engine.model_config.dtype}")
     test_ds = dataset[dataset_split].shuffle(seed=0).select(range(min(max_test_samples, len(dataset[dataset_split]))))
     
     for x in test_ds:
-        prompt = [
-            {
-                "role": "user",
-                "content": f"Please reason step by step, and put your final answer within \\boxed{{}}. Question: {x[question_key]}",
-            }
-        ]
-        # prompt = [{
-        #     "role": "user",
-        #     "content": f"Question: {x[question_key]}",
-        # }]
+        # prompt = [
+        #     {
+        #         "role": "user",
+        #         "content": f"Please reason step by step, and put your final answer within \\boxed{{}}. Question: {x[question_key]}",
+        #     }
+        # ]
+        
+        prompt = [{
+            "role": "user",
+            "content": f"Question: {x[question_key]}",
+        }]
 
         prompt_tokens = model.llm_engine.tokenizer.tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
         test_prompts.append(prompt_tokens)
@@ -149,9 +151,6 @@ def evaluate_model(model_name,
     
     print("Generating test outputs...")
     print(model.llm_engine.tokenizer.tokenizer.decode(test_prompts[0], skip_special_tokens=False))
-
-    # if int(os.environ.get('CUDA_VISIBLE_DEVICES', '0').split(',')[0]) == 0:
-    #     import pdb; pdb.set_trace()
 
     start_time = time.time()
     test_outputs = model.generate(prompt_token_ids=test_prompts, 
